@@ -26,7 +26,7 @@ library(corrr)
 ## Initialize configuration with defaults
 local_config <- spark_config()
 ## Memory
-local_config$`sparklyr.shell.driver-memory` <- "18G"
+local_config$`sparklyr.shell.driver-memory` <- "6G"
 ## Memory fraction (default 60 %)
 local_config$`spark.memory.fraction` <- 0.4
 ## Cores
@@ -500,6 +500,7 @@ dat_mcp_pip_dip_filt <- spark_read_parquet(
 
 # Number of rows
 dat_mcp_pip_dip_filt %>% sdf_nrow()
+dat_mcp_pip_dip_filt %>% glimpse()
 
 # Boxplot data for MCP, PIP, DIP filtered
 dat_boxplot_filt <- dat_mcp_pip_dip_filt %>% 
@@ -742,6 +743,7 @@ corr_mat_f <- function(dat, exercise_filt = 2, min_obs = 100) {
     group_by(restimulus, subject, rerepetition) %>% 
     # Filter out all groups with less than min_obs observations per same repetition
     filter(n() >= min_obs) %>% ungroup()
+  # TODO: Add number of observations to use as weight factor later
   cart_prod <- dat_filt %>% 
     select(restimulus, subject, rerepetition) %>%
     sdf_distinct() %>%
@@ -817,8 +819,13 @@ corr_mat_long %>%
   ) %>%
   select(-subject, -rerepetition) %>% 
   filter(
-    # restimulus == 1 & str_detect(x, 'MCP')
-    restimulus %in% c(2, 3, 8, 9, 10)
+    # !restimulus %in% c(2, 3, 10, 20),
+    # !restimulus %in% c(8, 9, 17, 18, 23),
+    # !restimulus %in% c(6, 14, 15, 16, 19),
+    # !restimulus %in% c(5, 13, 21, 22)
+    # restimulus %in% c(1, 7)
+    # restimulus %in% c(4, 11, 12)
+    restimulus %in% c(11, 12, 13, 18)
   ) %>% 
   group_by(restimulus, subject_rerepetition, x_y) %>%
   summarise(
@@ -826,14 +833,16 @@ corr_mat_long %>%
   ) %>% 
   group_by(restimulus, x_y) %>% 
   mutate(
-    corr_median_abs = abs(median(corr))
+    corr_median_abs = abs(median(corr)),
+    restimulus = paste('Movement:', restimulus)
   ) %>% 
   ungroup() %>% 
+  # Keep only median correlation values >= 0.8 (very strong relationship)
   filter(
     corr_median_abs >= 0.8
   ) %>% 
   ggplot() +
-  facet_wrap(. ~ restimulus, scales = 'fixed') +
+  facet_wrap(. ~ restimulus, scales = 'fixed', nrow = 1) +
   geom_boxplot(
     aes(
       x = corr,
@@ -842,7 +851,7 @@ corr_mat_long %>%
       # group = subject_rerepetition,
       # color = subject_rerepetition
     ),
-    # width = 0.5, alpha = 1, outlier.size = 1, outlier.stroke = 0.1
+    width = 0.6, alpha = 1, outlier.size = 1, outlier.stroke = 0.1
   ) + 
   # scale_y_continuous(
     # name = expression('Angle [°]'),
@@ -850,18 +859,26 @@ corr_mat_long %>%
     # minor_breaks = seq(-400, 400, 25)
     # limits=c(0, NA)
   # ) +
-  # scale_x_discrete(
-    # name = 'Correlation',
-    # expand = c(0.055, 0.055)
-    # breaks = seq(0, 30, 1)
-    # ) +
-  scale_fill_viridis_c(name = 'Absolute median correlation') +
-  ggtitle("Exercise 2 - Boxplot of correlations") +
+  scale_x_continuous(
+  name = 'Correlation',
+  # expand = c(0.055, 0.055),
+  breaks = seq(-1, 1, 0.25)
+  ) +
+  scale_fill_viridis_c(
+    name = 'Absolute median correlation',
+    option = 'viridis',
+    begin = 0.4,
+    limits = c(0.8, 1),
+    breaks = seq(0, 1, 0.05)
+    ) +
+  ggtitle("Boxplot of correlations - Exercise 2") +
   guides(
-    fill = guide_colorbar(nrow = 1)
+    fill = guide_colorbar(
+      nrow = 1,
+      barheight = 0.5
+      )
   ) +
   theme_bw() + theme(
-    # panel.border = element_rect(),
     legend.position = 'top',
     legend.box = 'horizontal',
     panel.background = element_blank(),
@@ -869,13 +886,27 @@ corr_mat_long %>%
     legend.box.spacing = unit(2, 'mm'),
     legend.spacing = unit(2, 'mm'),
     legend.margin = margin(0, 0, 0, 0, 'mm'),
-    axis.title = element_text(face="bold", size = 10),
-    axis.text.x = element_text(colour="black", size = 8),
-    axis.text.y = element_text(colour="black", size = 8),
+    legend.text = element_text(color="black", size = 8),
+    legend.title = element_text(color = 'black', size = 8, vjust = 1),
+    axis.title.x = element_text(face="bold", size = 9),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(colour="black", size = 7),
+    axis.text.y = element_text(colour="black", size = 7),
     axis.line = element_line(size=0.5, colour = "black"),
     plot.title = element_text(hjust = 0.5),
     panel.grid = element_line(colour = 'grey', size = 0.2)
   )
+ggsave(
+  # filename = 'plots/correlation_boxplot_exercise_2_movement_2_3_10_20.png',
+  # filename = 'plots/correlation_boxplot_exercise_2_movement_8_9_17_18_23.png',
+  # filename = 'plots/correlation_boxplot_exercise_2_movement_6_14_15_16_19.png',
+  # filename = 'plots/correlation_boxplot_exercise_2_movement_5_13_21_22.png',
+  # filename = 'plots/correlation_boxplot_exercise_2_movement_1_7.png',
+  filename = 'plots/correlation_boxplot_exercise_2_movement_4_11_12.png',
+  # width = 13, height = 9, units = 'cm', dpi = 320, pointsize = 12)
+  # width = 13, height = 11, units = 'cm', dpi = 320, pointsize = 12)
+  width = 19, height = 11, units = 'cm', dpi = 320, pointsize = 12)
+  # width = 25, height = 15, units = 'cm', dpi = 320, pointsize = 12)
 
 corr_mat_long %>% 
   # Keep only correlation values >= 0.5
@@ -955,7 +986,33 @@ ggsave(
   width = 36, height = 15, units = 'cm', dpi = 320, pointsize = 12)
 
 # Linear regression on data
+test_reg <- dat_mcp_pip_dip_filt %>% 
+  select(subject, exercise, restimulus, rerepetition, MCP2_f:DIP5) %>% 
+  filter(exercise == 2) %>% 
+  select(-exercise) %>% 
+  group_by(restimulus, subject, rerepetition) %>% 
+  # Filter out all groups with less than min_obs observations per same repetition
+  filter(n() >= 100) %>% ungroup() %>% 
+  filter(
+    restimulus == 17
+    ) %>%
+  group_by(subject, rerepetition) %>% collect()
 
+test_reg %>% group_by(subject, rerepetition) %>% 
+  nest(data = MCP2_f:DIP5) %>% 
+  mutate(
+    fit = map(data, ~lm(DIP2 ~ MCP3_f+0, data = .)),
+    glanced = map(fit, glance),
+    tidied = map(fit, tidy)
+  ) %>% unnest(glanced) %>% select(-statistic, -p.value) %>% 
+  unnest(tidied) %>% select(
+    subject, restimulus, rerepetition, nobs, r.squared, adj.r.squared, term, estimate, p.value
+  ) %>% ungroup() %>%
+  filter(adj.r.squared >= 0.8) %>%
+  summarise(
+    coeff = weighted.mean(estimate)
+  )
+  
 # Disconnect from Spark
 spark_disconnect(sc)
 spark_disconnect_all()
