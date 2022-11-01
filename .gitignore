@@ -43,3 +43,8 @@ vignettes/*.pdf
 derby.log
 logs/
 *.Rproj
+
+# Ignore database and log files and folders
+clean_data/
+logs/
+s_*
