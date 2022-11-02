@@ -45,6 +45,7 @@ logs/
 *.Rproj
 
 # Ignore database and log files and folders
-clean_data/
+/clean_data/*
+!/clean_data/s1-77_e2_distinct_flex_anatomical.parquet/
 logs/
 s_*
