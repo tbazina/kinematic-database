@@ -85,8 +85,10 @@ dat_full <- spark_read_parquet(
   )
 
 # Dataset dimesion
+dat_full %>% glimpse()
 dat_full %>% sdf_nrow()
 dat_full %>% dim()
+dat_full %>% select(restimulus) %>% distinct() %>% sdf_collect() %>% View()
 
 # Count NA or NaN values over entire dataset
 # is.nan is not working but isnan is
@@ -146,6 +148,11 @@ dat_full <- spark_read_parquet(
   memory = F,
   overwrite = T
   )
+
+# Distinct dataset dimension
+dat_full %>% glimpse()
+dat_full %>% sdf_nrow()
+dat_full %>% dim()
 
 # Extract only MCP, PIP and DIP flexion joint angles for fingers 2-5 and save
 dat_full %>%
@@ -997,6 +1004,28 @@ test_reg <- dat_mcp_pip_dip_filt %>%
     restimulus == 17
     ) %>%
   group_by(subject, rerepetition) %>% collect()
+
+# Visualize test data
+test_reg %>% 
+  mutate(
+    rerepetition = as.ordered(rerepetition)
+  ) %>% 
+  filter(
+    # subject == 58
+  ) %>% 
+  ggplot() +
+  facet_wrap(. ~ subject) +
+  geom_point(
+    aes(
+      x = MCP3_f,
+      y = DIP2,
+      color = rerepetition
+    ),
+    size = 0.3
+  ) +
+  scale_color_brewer(
+    palette = 'Dark2'
+  )
 
 test_reg %>% group_by(subject, rerepetition) %>% 
   nest(data = MCP2_f:DIP5) %>% 
