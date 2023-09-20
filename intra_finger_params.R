@@ -1965,7 +1965,7 @@ corr_mat_long_iqr_filt_high_iqr_share_filt %>%
     plot.title = element_text(hjust = 0.5),
     strip.text.x = element_text(size = 5, colour = "black"),
     panel.grid = element_line(colour = 'grey', size = 0.1),
-    panel.border = element_rect(size = 0.1),
+    panel.border = element_rect(linewidth = 0.1),
     strip.background = element_rect(size = 0.1),
     axis.ticks = element_line(size = 0.1),
     axis.ticks.length = unit(0.1, 'lines')
@@ -2469,14 +2469,14 @@ weight_scale_transform_model_matrix <- function(
       # Second order, sqrt, log, exp transform  of subject height
       x_joint_height = height,
       x_joint_height_poly = x_joint_height^2,
-      x_joint_height_sqrt = sqrt(x_joint_height),
-      x_joint_height_log = log(x_joint_height),
+      # x_joint_height_sqrt = sqrt(x_joint_height),
+      # x_joint_height_log = log(x_joint_height),
       x_joint_height_exp = exp(x_joint_height),
       # Second order, sqrt, log, exp transform  of subject weight
       x_joint_weight = subj_weight,
       x_joint_weight_poly = x_joint_weight^2,
-      x_joint_weight_sqrt = sqrt(x_joint_weight),
-      x_joint_weight_log = log(x_joint_weight),
+      # x_joint_weight_sqrt = sqrt(x_joint_weight),
+      # x_joint_weight_log = log(x_joint_weight),
       x_joint_weight_exp = exp(x_joint_weight)
     ) %>% 
     # Assign fold ids to data by left join with df containing fold ids
@@ -2559,21 +2559,22 @@ collect_spark_data <- function(
 }
 
 panel_plot_fit <- function(
-    fit, plot_dat, x_joint, y_joint,
-    lmer_subj_vec, grid_wrap_facet = facet_grid,
+    fit, plot_dat, x_joint, y_joint, grid_wrap_facet = facet_grid,
     lambda = '1se', smooth_term_dim = 5) {
   #' Panel scatter plot for single dependency-restimulus with fits
   # If fit object is GLM
   if ('cv.glmnet' %in% class(fit$fit)) {
     plot_dat$dat <- plot_dat$dat %>%
       mutate(
-        predictions = predict(
+        predictions_scaled = predict(
           fit$fit,
           newx = plot_dat$model_matrix[,-1],
           s = paste0('lambda.', lambda),
-          gamma = paste0('gamma.', lambda),
+          gamma = paste0('gamma.', lambda)
+          ),
           # Rescale response
-          ) * attr(plot_dat$dat$y_joint_scaled, 'scaled:scale') +
+        predictions = predictions_scaled *
+          attr(plot_dat$dat$y_joint_scaled, 'scaled:scale') +
           attr(plot_dat$dat$y_joint_scaled, 'scaled:center')
         )
   }
@@ -2584,17 +2585,19 @@ panel_plot_fit <- function(
         y_joint_scaled = plot_dat$dat$y_joint_scaled,
         subject = plot_dat$dat$subject,
         obs_weight = plot_dat$dat$obs_weight
-      ) %>% 
-      # Possibility of subjects in test set not present in train data
-      filter(subject %in% lmer_subj_vec)
-    plot_dat$dat <- plot_dat$dat %>% filter(subject %in% lmer_subj_vec)
+      )
     plot_dat$dat <- plot_dat$dat %>% 
       mutate(
-        predictions = predict(
+        # Standardized predictions and residuals
+        predictions_scaled = predict(
           fit$fit,
           newdata = model_matrix,
+          # Predict for new subject levels using only fixed effects
+          allow.new.levels = T
+        ),
           # Rescale response
-          ) * attr(plot_dat$dat$y_joint_scaled, 'scaled:scale') +
+        predictions = predictions_scaled *
+          attr(plot_dat$dat$y_joint_scaled, 'scaled:scale') +
           attr(plot_dat$dat$y_joint_scaled, 'scaled:center')
       )
     }
@@ -2771,28 +2774,23 @@ residuals_hist_plot_fit_glm <- function(
       )
 }
 # Check for residual normality - q-q plot
-residuals_qq_plot_fit_glm <- function(
-    fit, plot_dat, lambda = '1se') {
+residuals_qq_plot <- function(
+    dat_with_pred_resid, distribution_quantile_function = qnorm,
+    scaled = T
+    ) {
   #' Panel scatter plot for single dependency-restimulus with fits
-  plot_dat$dat %>%
-    mutate(
-      predictions = predict(
-        fit$fit,
-        newx = plot_dat$model_matrix,
-        s = paste0('lambda.', lambda),
-        gamma = paste0('gamma.', lambda),
-      )
-        # Rescale response
-        # ) * attr(train_dat$dat$y_joint_scaled, 'scaled:scale') +
-        # attr(train_dat$dat$y_joint_scaled, 'scaled:center')
-      ) %>%
-    mutate(
-      # resids = get(y_joint) - predictions
-      resids = y_joint_scaled - predictions
-    ) %>% 
-    ggplot(aes_string(sample = 'resids')) +
-    geom_qq_line(size = 1.3, color = pal_nejm('default', alpha = 0.6)(8)[1]) +
-    geom_qq() +
+    if (scaled == T) {
+      plot_obj <- dat_with_pred_resid %>%
+        ggplot(aes_string(sample = 'resids_scaled'))
+    } else {
+      plot_obj <- dat_with_pred_resid %>% 
+        ggplot(aes_string(sample = 'resids'))
+    }
+  plot_obj +
+    geom_qq_line(
+      distribution = distribution_quantile_function,
+      size = 1.3, color = pal_nejm('default', alpha = 0.6)(8)[1]) +
+    geom_qq(distribution = distribution_quantile_function) +
     scale_x_continuous(
       name = 'Theoretical quantiles',
       expand = c(0, 0)
@@ -2804,7 +2802,7 @@ residuals_qq_plot_fit_glm <- function(
     scale_color_viridis_d() +
     guides(color = guide_legend(nrow = 2)) +
     ggtitle(
-      paste('Movement:', unique(plot_dat$dat$restimulus))) +
+      paste('Movement:', unique(dat_with_pred_resid$restimulus))) +
     theme_bw() + theme(
       legend.position = 'top',
       legend.box = 'horizontal',
@@ -2831,8 +2829,8 @@ residuals_qq_plot_fit_glm <- function(
 # Fit generalized linear regression model to all data - function
 fit_glm_restimulus_dependency <- function(
     rest_dep, keep_variables = c(1, 2), fit_intercept = T, 
-    gammas = c(0, 0.25, 0.5, 0.75, 1), lambda.min.ratio = 5e-3,
-    nlambda = 100, info
+    gammas = c(0, 0.25, 0.5, 0.75, 1), lambda.min.ratio = 5e-2,
+    lambda.max = 1e-1, nlambda = 100, info
     ){
   print(info)
   # Penalty factors - always include linear and second order relationship in model, 
@@ -2852,6 +2850,7 @@ fit_glm_restimulus_dependency <- function(
     gamma = gammas,
     nlambda = nlambda,
     lambda.min.ratio = lambda.min.ratio,
+    lambda.max = lambda.max,
     family = 'gaussian',
     standardize = F,
     intercept = fit_intercept,
@@ -2870,9 +2869,18 @@ fit_glm_restimulus_dependency <- function(
     enframe() %>%
     mutate(abs_value = abs(value)) %>%
     filter(abs_value > 1e-6) %>% pull(name)
-  # Remove intercept from list (LME fits intercepts adn random effects)
+  # Extract coefficient names regularized with lambda.min for LME fit
+  coef_names_min <- coef(fit, s = 'lambda.min', gamma = 'gamma.min')[, 1] %>% 
+    enframe() %>%
+    mutate(abs_value = abs(value)) %>%
+    filter(abs_value > 1e-6) %>% pull(name)
+  # Remove intercept from list (LME fits intercepts and random effects)
   coef_names_1se <- coef_names_1se[-1]
-  return(list('fit' = fit, 'coef_names_1se' = coef_names_1se))
+  coef_names_min <- coef_names_min[-1]
+  return(list(
+    'fit' = fit,
+    'coef_names_1se' = coef_names_1se,
+    'coef_names_min' = coef_names_min))
 }
 
 # Fit linear mixed effects model to all data - function
@@ -2907,12 +2915,15 @@ fit_lme_restimulus_dependency <- function(
         )
       ),
     data = model_matrix,
+    # family = gaussian(link = 'log'),
     weights = model_matrix$obs_weight,
     REML = T
     )
   return(list('fit' = fit))
 }
   
+#TODO: residuals must be multiplied by sqrt(w), giving what's sometimes called
+#TODO: weighted standardized residuals. 
 compute_predictions_residuals <- function(in_dat, fit, y_joint){
   #' Use train/test data and model matrix to compute predictions and residuals,
   #' both standardized and rescaled 
@@ -2921,7 +2932,7 @@ compute_predictions_residuals <- function(in_dat, fit, y_joint){
     dat_with_pred_resid <- in_dat$dat %>%
       mutate(
         # Standardized predictions
-        predictions_scaled_glm = predict(
+        predictions_scaled = predict(
           fit$fit,
           # Remove intercept from model matrix
           newx = in_dat$model_matrix[,-1],
@@ -2929,13 +2940,13 @@ compute_predictions_residuals <- function(in_dat, fit, y_joint){
           gamma = 'gamma.1se',
           ),
         # Standardized residuals
-        resids_scaled_glm = y_joint_scaled - predictions_scaled,
+        resids_scaled = y_joint_scaled - predictions_scaled,
         # Rescaled predictions
-        predictions_glm = predictions_scaled *
+        predictions = predictions_scaled *
           attr(in_dat$dat$y_joint_scaled, 'scaled:scale') +
           attr(in_dat$dat$y_joint_scaled, 'scaled:center'),
         # Rescaled residuals
-        resids_glm = get(y_joint) - predictions
+        resids = get(y_joint) - predictions
         )
     }
   # If fit object is LME
@@ -2943,25 +2954,28 @@ compute_predictions_residuals <- function(in_dat, fit, y_joint){
     # Add column with scaled response to model matrix and convert to tibble
     model_matrix <- in_dat$model_matrix %>% as_tibble() %>% 
       mutate(
-        y_joint_scaled = in_dat$dat$y_joint_scaled
+        y_joint_scaled = in_dat$dat$y_joint_scaled,
+        subject = in_dat$dat$subject,
+        obs_weight = in_dat$dat$obs_weight
       )
+    # Predictions and residuals
     dat_with_pred_resid <- in_dat$dat %>% 
       mutate(
         # Standardized predictions and residuals
-        predictions_scaled_lme = predict(
+        predictions_scaled = predict(
           fit$fit,
           newdata = model_matrix,
           # Predict for new subject levels using only fixed effects
           allow.new.levels = T
           ),
         # Standardized residuals
-        resids_scaled_lme = y_joint_scaled - predictions_scaled,
+        resids_scaled = y_joint_scaled - predictions_scaled,
         # Rescaled predictions
-        predictions_lme = predictions_scaled *
+        predictions = predictions_scaled *
           attr(in_dat$dat$y_joint_scaled, 'scaled:scale') +
           attr(in_dat$dat$y_joint_scaled, 'scaled:center'),
         # Rescaled residuals
-        resids_lme = get(y_joint) - predictions
+        resids = get(y_joint) - predictions
         )
     }
   # Return new data frame with predictions and residuals
@@ -3026,8 +3040,8 @@ dependency <- sample(dependency_list, 1)
     # Fitting GLM model
     fit_glm <- fit_glm_restimulus_dependency(
       rest_dep = train_dat,
-      # Always include - 1 (linear), 2(polynomial)
-      keep_variables = c(1, 2),
+      # Always include - 1 (linear), 2(polynomial), 3(exponential)
+      keep_variables = c(1, 2, 3),
       fit_intercept = T,
       info = paste(
         'GLM cv fitting - Movement:', rest_select, '- Dependency:', dependency
@@ -3036,27 +3050,82 @@ dependency <- sample(dependency_list, 1)
     # Fitting LME model
     fit_lme <- fit_lme_restimulus_dependency(
       rest_dep = train_dat,
-      # Keep variables from GLM fit
-      keep_variables = fit_glm$coef_names_1se,
-      # True to keep all variables
-      # keep_variables = T,
+      # Keep 1se regularized variables from GLM fit
+      # keep_variables = fit_glm$coef_names_1se,
+      # Keep min regularized variables from GLM fit
+      keep_variables = fit_glm$coef_names_min,
+      # Keep all variables (except Intercept)
+      # keep_variables = dimnames(train_dat$model_matrix)[[2]][2:10],
       info = paste(
         'LME fitting - Movement:', rest_select, '- Dependency:', dependency
+        )
+      )
+    # Select only highly significant ones < 0.001 (5th column is with p-values)
+    fit_lme$sig_coefs <- fit_lme$fit %>% 
+      summary() %>% coefficients() %>% subset(select = 5) < 0.001
+    fit_lme$sig_coefs <- dimnames(fit_lme$sig_coefs)[[1]] %>% 
+      subset(fit_lme$sig_coefs, 1)
+    fit_lme <- fit_lme_restimulus_dependency(
+      rest_dep = train_dat,
+      # Keep only highly significant variables
+      keep_variables = fit_lme$sig_coefs,
+      info = paste(
+        'LME second fitting - Movement:', rest_select, '- Dependency:', dependency
         )
       )
     #TODO: train_data, test_data add resid and prediction columns
   # }
 # }
     
+#TODO: MAE, MSE on test and train data - scale back
+#TODO: scale and center the response and than compute error
+compute_predictions_residuals(
+  in_dat = test_dat,
+  # in_dat = train_dat,
+  # fit = fit_glm,
+  fit = fit_lme,
+  y_joint = y_joint
+  ) %>% select(resids, obs_weight) %>% 
+  mutate(
+    # weighted_resids = resids * obs_weight
+    weighted_resids = resids
+  ) %>% 
+  summarise(
+    wmae = mean(abs(weighted_resids)),
+    wmse = mean(weighted_resids^2),
+    wrmse = sqrt(wmse)
+    )
+
+# QQ plot of residuals - normal distribution
+compute_predictions_residuals(
+  # in_dat = test_dat,
+  in_dat = train_dat,
+  # fit = fit_glm,
+  fit = fit_lme,
+  y_joint = y_joint
+  ) %>% residuals_qq_plot(scaled = T, distribution_quantile_function = qunif)
     
 fit_glm$fit %>% plot(se.bands=F)
 # and between weight and height
 fit_glm$fit %>% print()
+fit_glm$fit %>% coef(s = 'lambda.1se', gamma = 'gamma.1se')
 fit_lme$fit %>% summary()
 fit_lme$fit %>% print()
-qqnorm(resid(fit_lme$fit, type = 'pearson', scaled = T))
-qqline(resid(fit_lme$fit, type = 'pearson', scaled = T))
+# Fixed-effects parameter table with estimates, t and p values
+fit_lme$fit %>% summary() %>% coef() %>% as_tibble(rownames = 'coeffs') %>% 
+  mutate(abs_estimate = abs(Estimate)) %>% filter(abs_estimate > `Std. Error`)
+# Extract Variance and standard deviation to explain
+fit_lme$fit %>% VarCorr() %>% as_tibble() %>% select(-var2) %>% 
+  mutate(
+    var_perc_tot = vcov / sum(vcov),
+    sd_perc_tot = sdcor / sum(sdcor),
+  )
+# T-value - coeff / SE - maybe size of the effect
+
+qqnorm(resid(fit_lme$fit, type = 'response', scaled = T))
+qqline(resid(fit_lme$fit, type = 'response', scaled = T))
 plot((fit_lme$fit), type=c("p","smooth"), col.line=1)
+plot(fit_lme$fit, sqrt(abs(resid(.))) ~ fitted(.), type = c("p", "smooth"))
 # anova(fit_lme$fit)
 with(fit_glm, {
   a <- coef(fit, s = 'lambda.1se', gamma = 'gamma.1se')[, 1]
@@ -3070,7 +3139,6 @@ resid_panel(fit_lme$fit, smoother = F, qqbands = F)
 panel_plot_fit(
   # fit = fit_glm,
   fit = fit_lme,
-  lmer_subj_vec = train_dat$dat %>% select(subject) %>% distinct() %>% pull(subject),
   grid_wrap_facet = facet_wrap,
   # plot_dat = train_dat,
   plot_dat = test_dat,
