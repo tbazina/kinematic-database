@@ -24,6 +24,7 @@ library(ggfortify)
 library(nlme)
 library(lme4)
 library(lmerTest)
+# library(merTools)
 # Diagnostic panel plot of residuals
 library(ggResidpanel)
 # Ramer-Douglas-Peucker Algorithm reducing the number of points on a 2D curve
@@ -2937,18 +2938,10 @@ compute_predictions_residuals <- function(in_dat, fit, y_joint){
           # Remove intercept from model matrix
           newx = in_dat$model_matrix[,-1],
           s = 'lambda.1se',
-          gamma = 'gamma.1se',
-          ),
-        # Standardized residuals
-        resids_scaled = y_joint_scaled - predictions_scaled,
-        # Rescaled predictions
-        predictions = predictions_scaled *
-          attr(in_dat$dat$y_joint_scaled, 'scaled:scale') +
-          attr(in_dat$dat$y_joint_scaled, 'scaled:center'),
-        # Rescaled residuals
-        resids = get(y_joint) - predictions
+          gamma = 'gamma.1se'
+          )
         )
-    }
+  }
   # If fit object is LME
   if ('lmerModLmerTest' %in% class(fit$fit)) {
     # Add column with scaled response to model matrix and convert to tibble
@@ -2967,17 +2960,20 @@ compute_predictions_residuals <- function(in_dat, fit, y_joint){
           newdata = model_matrix,
           # Predict for new subject levels using only fixed effects
           allow.new.levels = T
-          ),
-        # Standardized residuals
-        resids_scaled = y_joint_scaled - predictions_scaled,
+          )
+      )
+  }
+  dat_with_pred_resid <- dat_with_pred_resid %>% 
+    mutate(
+        # Weighted standardized residuals (multiply with sqrt(obs_weight))
+        resids_scaled = (y_joint_scaled - predictions_scaled) * sqrt(obs_weight),
         # Rescaled predictions
         predictions = predictions_scaled *
           attr(in_dat$dat$y_joint_scaled, 'scaled:scale') +
           attr(in_dat$dat$y_joint_scaled, 'scaled:center'),
-        # Rescaled residuals
-        resids = get(y_joint) - predictions
-        )
-    }
+        # Rescaled residuals - multiply by weights
+        resids = (get(y_joint) - predictions) * sqrt(obs_weight)
+    )
   # Return new data frame with predictions and residuals
   return(dat_with_pred_resid)
 }
@@ -3040,7 +3036,7 @@ dependency <- sample(dependency_list, 1)
     # Fitting GLM model
     fit_glm <- fit_glm_restimulus_dependency(
       rest_dep = train_dat,
-      # Always include - 1 (linear), 2(polynomial), 3(exponential)
+      # Always include - 1 (lin), 2(poly), 3(exp)
       keep_variables = c(1, 2, 3),
       fit_intercept = T,
       info = paste(
@@ -3051,15 +3047,16 @@ dependency <- sample(dependency_list, 1)
     fit_lme <- fit_lme_restimulus_dependency(
       rest_dep = train_dat,
       # Keep 1se regularized variables from GLM fit
-      # keep_variables = fit_glm$coef_names_1se,
+      keep_variables = fit_glm$coef_names_1se,
       # Keep min regularized variables from GLM fit
-      keep_variables = fit_glm$coef_names_min,
+      # keep_variables = fit_glm$coef_names_min,
       # Keep all variables (except Intercept)
       # keep_variables = dimnames(train_dat$model_matrix)[[2]][2:10],
       info = paste(
         'LME fitting - Movement:', rest_select, '- Dependency:', dependency
         )
       )
+    # First step in model refinement -> significant + effect size
     # Select only highly significant ones < 0.001 (5th column is with p-values)
     fit_lme$sig_coefs <- fit_lme$fit %>% 
       summary() %>% coefficients() %>% subset(select = 5) < 0.001
@@ -3070,7 +3067,49 @@ dependency <- sample(dependency_list, 1)
       # Keep only highly significant variables
       keep_variables = fit_lme$sig_coefs,
       info = paste(
-        'LME second fitting - Movement:', rest_select, '- Dependency:', dependency
+        'LME fitting significant - Movement:', rest_select, '- Dependency:', dependency
+        )
+      )
+    # Select only predictors with moderate and strong effect
+    # Standardized coefficient absolute value >0.29
+    fit_lme$eff_coefs <- fit_lme$fit %>% 
+      summary() %>% coefficients() %>% subset(select = 1) %>% abs() > 0.29
+    fit_lme$eff_coefs <- dimnames(fit_lme$eff_coefs)[[1]] %>% 
+      subset(fit_lme$eff_coefs, 1)
+    fit_lme <- fit_lme_restimulus_dependency(
+      rest_dep = train_dat,
+      # Keep only highly significant variables
+      keep_variables = fit_lme$eff_coefs,
+      info = paste(
+        'LME fitting with effect - Movement:', rest_select, '- Dependency:', dependency
+        )
+      )
+    # Second step in model refinement -> significant + effect size
+    # Select only highly significant ones < 0.001 (5th column is with p-values)
+    fit_lme$sig_coefs <- fit_lme$fit %>% 
+      summary() %>% coefficients() %>% subset(select = 5) < 0.001
+    fit_lme$sig_coefs <- dimnames(fit_lme$sig_coefs)[[1]] %>% 
+      subset(fit_lme$sig_coefs, 1)
+    fit_lme <- fit_lme_restimulus_dependency(
+      rest_dep = train_dat,
+      # Keep only highly significant variables
+      keep_variables = fit_lme$sig_coefs,
+      info = paste(
+        'LME fitting significant - Movement:', rest_select, '- Dependency:', dependency
+        )
+      )
+    # Select only predictors with moderate and strong effect
+    # Standardized coefficient absolute value >0.29
+    fit_lme$eff_coefs <- fit_lme$fit %>% 
+      summary() %>% coefficients() %>% subset(select = 1) %>% abs() > 0.29
+    fit_lme$eff_coefs <- dimnames(fit_lme$eff_coefs)[[1]] %>% 
+      subset(fit_lme$eff_coefs, 1)
+    fit_lme <- fit_lme_restimulus_dependency(
+      rest_dep = train_dat,
+      # Keep only highly significant variables
+      keep_variables = fit_lme$eff_coefs,
+      info = paste(
+        'LME fitting with effect - Movement:', rest_select, '- Dependency:', dependency
         )
       )
     #TODO: train_data, test_data add resid and prediction columns
@@ -3085,21 +3124,17 @@ compute_predictions_residuals(
   # fit = fit_glm,
   fit = fit_lme,
   y_joint = y_joint
-  ) %>% select(resids, obs_weight) %>% 
-  mutate(
-    # weighted_resids = resids * obs_weight
-    weighted_resids = resids
   ) %>% 
   summarise(
-    wmae = mean(abs(weighted_resids)),
-    wmse = mean(weighted_resids^2),
+    wmae = mean(abs(resids)),
+    wmse = mean(resids^2),
     wrmse = sqrt(wmse)
     )
 
 # QQ plot of residuals - normal distribution
 compute_predictions_residuals(
-  # in_dat = test_dat,
-  in_dat = train_dat,
+  in_dat = test_dat,
+  # in_dat = train_dat,
   # fit = fit_glm,
   fit = fit_lme,
   y_joint = y_joint
@@ -3110,7 +3145,18 @@ fit_glm$fit %>% plot(se.bands=F)
 fit_glm$fit %>% print()
 fit_glm$fit %>% coef(s = 'lambda.1se', gamma = 'gamma.1se')
 fit_lme$fit %>% summary()
-fit_lme$fit %>% print()
+# fit_lme$fit %>% print()
+# Random effects mean, median and sd of the random effect estimates
+fit_lme$fit %>% merTools::REsim() %>% summarise(
+  mean_mean = mean(mean),
+  mean_sd = IQR(mean), 
+  median_mean = mean(median)
+)
+fit_lme$fit %>% merTools::REsim() %>% merTools::plotREsim()
+# Random effects
+fit_lme$fit %>% coef() %>% .[['subject']] %>% summarise(
+  across(.cols = everything(), list(mean = mean, sd = sd, iqr = IQR))
+)
 # Fixed-effects parameter table with estimates, t and p values
 fit_lme$fit %>% summary() %>% coef() %>% as_tibble(rownames = 'coeffs') %>% 
   mutate(abs_estimate = abs(Estimate)) %>% filter(abs_estimate > `Std. Error`)
@@ -3122,8 +3168,10 @@ fit_lme$fit %>% VarCorr() %>% as_tibble() %>% select(-var2) %>%
   )
 # T-value - coeff / SE - maybe size of the effect
 
-qqnorm(resid(fit_lme$fit, type = 'response', scaled = T))
-qqline(resid(fit_lme$fit, type = 'response', scaled = T))
+qqnorm(residuals(fit_lme$fit, type = 'response', scaled = F))
+qqline(residuals(fit_lme$fit, type = 'response', scaled = F))
+qqnorm(weighted.residuals(fit_lme$fit))
+qqline(weighted.residuals(fit_lme$fit))
 plot((fit_lme$fit), type=c("p","smooth"), col.line=1)
 plot(fit_lme$fit, sqrt(abs(resid(.))) ~ fitted(.), type = c("p", "smooth"))
 # anova(fit_lme$fit)
@@ -3146,7 +3194,7 @@ panel_plot_fit(
   y_joint = y_joint,
   lambda = '1se',
   # lambda = 'min',
-  smooth_term_dim = 4
+  smooth_term_dim = 3
   )
 residuals_plot_fit_glm(
   fit = fit_glm,
