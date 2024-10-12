@@ -27,10 +27,12 @@ library(corrr)
 local_config <- spark_config()
 ## Memory
 local_config$`sparklyr.shell.driver-memory` <- "6G"
+# local_config$`sparklyr.shell.driver-memory` <- "18G"
 ## Memory fraction (default 60 %)
 local_config$`spark.memory.fraction` <- 0.4
 ## Cores
-local_config$`sparklyr.cores.local` <- 12
+# local_config$`sparklyr.cores.local` <- 12
+local_config$`sparklyr.cores.local` <- 8
 
 # Connect to Spark locally (use version 3.0+ with Java 11)
 sc <- spark_connect(master = 'local', version = '3.1', config = local_config)
@@ -795,7 +797,9 @@ corr_mat %>% glimpse()
 # Plot correlation matrices
 corr_mat_long <- corr_mat %>% 
   mutate(
+    # Keep only lower triangle
     corrs = map(corrs, shave),
+    # Long format for plotting
     corrs = map(corrs, stretch),
     ) %>% unnest(corrs) %>% 
   rename(corr = r)
@@ -1037,7 +1041,7 @@ test_reg %>% group_by(subject, rerepetition) %>%
   unnest(tidied) %>% select(
     subject, restimulus, rerepetition, nobs, r.squared, adj.r.squared, term, estimate, p.value
   ) %>% ungroup() %>%
-  filter(adj.r.squared >= 0.8) %>%
+  filter(adj.r.squared >= 0.8) %>% View()
   summarise(
     coeff = weighted.mean(estimate)
   )

@@ -38,6 +38,9 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 
+# Vim backup files
+.~
+
 # Backups, logs, project files
 .gitignore~
 derby.log

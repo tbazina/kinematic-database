@@ -40,13 +40,13 @@ library(RDP)
 local_config <- spark_config()
 ## Memory
 # local_config$`sparklyr.shell.driver-memory` <- "10G"
-local_config$`sparklyr.shell.driver-memory` <- "18G"
+local_config$`sparklyr.shell.driver-memory` <- "22G"
 ## Memory fraction (default 60 %)
 # local_config$`spark.memory.fraction` <- 0.3
 local_config$`spark.memory.fraction` <- 0.4
 ## Cores
-# local_config$`sparklyr.cores.local` <- 8
-local_config$`sparklyr.cores.local` <- 12
+local_config$`sparklyr.cores.local` <- 8
+# local_config$`sparklyr.cores.local` <- 12
 
 # Connect to Spark locally (use version 3.0+ with Java 11)
 sc <- spark_connect(master = 'local', version = '3.1', config = local_config)
@@ -394,7 +394,7 @@ dat_boxplot %>%
   # filter(angles %in% c('DIP3')) %>%
   # mutate(angles = 'DIP3 - raw') %>% 
   filter(angles %in% c('MCP2_f')) %>%
-  mutate(angles = 'MCP2_f - raw') %>%
+  mutate(angles = 'MCP2_f - calibrated') %>%
   ggplot() +
   facet_wrap(. ~ angles, scales = 'free_y') +
   geom_boxplot(
@@ -473,6 +473,88 @@ dat_boxplot %>%
   ggsave(
     filename = 'plots/boxplot_of_medians_motion_angle_no_filt_mcp2_f.png',
     width = 3.3, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+
+# Boxplot of medians for outlier detection - before filtering (euspen template)
+dat_boxplot %>% 
+  mutate(
+    restimulus = as.ordered(restimulus)
+  ) %>% 
+  filter(angles %in% c('MCP5_f')) %>%
+  mutate(angles = 'MCP5') %>%
+  ggplot() +
+  facet_wrap(. ~ angles, scales = 'free_y') +
+  geom_boxplot(
+    aes(
+      x = restimulus,
+      y = middle,
+      fill = restimulus
+      ),
+    outlier.size = 0.1,
+    size = 0.1
+  ) +
+  # Zero line for easier outlier detection
+  geom_hline(
+    yintercept = -30,
+    color = 'black',
+    lty = 'longdash',
+    size = 0.4
+  ) +
+  geom_hline(
+    yintercept = 90,
+    color = 'black',
+    lty = 'longdash',
+    size = 0.4
+  ) +
+  scale_y_continuous(
+      name = expression('Median joint angle [°]'),
+      # name = '',
+      breaks = seq(-400, 400, 25),
+      # minor_breaks = seq(-400, 400, 12.5)
+      # limits=c(0, NA)
+    ) +
+  scale_x_discrete(
+    # name = 'Movement',
+    name = '',
+    # expand = c(0.0, 1.6, 0.0, 0.2)
+    # breaks = seq(0, 30, 1)
+    ) +
+  scale_fill_viridis_d(
+    name = 'Movement',
+    option = 'cividis',
+    begin = 0.3,
+    end = 0.9
+    ) +
+  scale_color_viridis_d(
+    name = 'Motion',
+    end = 0.8
+    ) +
+  # ggtitle('Boxplot of angle medians - 2 samples - before filtering') +
+  theme_bw() + theme(
+    text = element_text(family = 'calibri'),
+    legend.position = 'none',
+    legend.box = 'horizontal',
+    legend.box.spacing = unit(0, 'mm'),
+    legend.spacing = unit(2, 'mm'),
+    legend.margin = margin(0, 0, 0, 0, 'mm'),
+    panel.background = element_blank(),
+    panel.spacing = unit(0, 'mm'),
+    axis.title = element_text(face="bold", size = 8),
+    axis.text.x = element_text(colour="black", size = 8),
+    axis.text.y = element_text(colour="black", size = 8),
+    axis.line = element_line(size=0.1, colour = "black"),
+    plot.title = element_text(hjust = 0.5),
+    panel.grid = element_line(colour = 'grey', size = 0.1),
+    strip.text.x = element_text(
+      size = 8, colour = "black", margin = margin(0.5, 0.5, 0.5, 0.5, 'mm')
+      ),
+    panel.border = element_rect(size = 0.1),
+    strip.background = element_rect(size = 0.1),
+    axis.ticks = element_line(size = 0.1),
+    axis.ticks.length = unit(0.1, 'lines')
+  )
+  ggsave(
+    filename = 'plots/boxplot_of_medians_motion_angle_no_filt_mcp5_euspen.png',
+    width = 9, height = 4, units = 'cm', dpi = 320, pointsize = 12)
 
 # Filter data to anatomical ranges.
 # CMC5, DIP3, DIP4 and DIP5 should also be negated 
@@ -850,18 +932,23 @@ ggsave(
 ## Boxplot of medians for outlier detection after filtering to anatomical angles
 ## and removal of small samples (n > 100, IQR share < 0.5)
 ## MDPI template
-# dat_boxplot_anat_range_small %>% 
+# Raw data
+dat_boxplot %>%
+# Filtering to anatomical range, no small samples
+# dat_boxplot_anat_range_small %>%
 ## Filtering with 1.5 IQR rule
-dat_boxplot_anat_range_small_iqr_filt %>% 
+# dat_boxplot_anat_range_small_iqr_filt %>%
   mutate(
     restimulus = as.ordered(restimulus)
   ) %>% 
-  # filter(angles %in% c('DIP3')) %>%
-  # mutate(angles = 'DIP3 - anatomical, no small samples') %>%
-  # mutate(angles = 'DIP3 - 1.5 IQR filtered') %>%
-  filter(angles %in% c('MCP2_f')) %>%
-  # mutate(angles = 'MCP2_f - anatomical, no small samples') %>%
-  mutate(angles = 'MCP2_f - 1.5 IQR filtered') %>%
+  filter(angles %in% c('DIP3')) %>%
+  mutate(angles = 'DIP3 \U2212 calibrated') %>%
+  # mutate(angles = 'DIP3 \U2212 anatomical, no small samples') %>%
+  # mutate(angles = 'DIP3 \U2212 1.5 IQR outliers removed') %>%
+  # filter(angles %in% c('MCP2_f')) %>%
+  # mutate(angles = 'MCP2_f \U2212 calibrated') %>%
+  # mutate(angles = 'MCP2_f \U2212 anatomical, no small samples') %>%
+  # mutate(angles = 'MCP2_f \U2212 1.5 IQR outliers removed') %>%
   ggplot() +
   facet_wrap(. ~ angles, scales = 'free_y') +
   geom_boxplot(
@@ -878,35 +965,63 @@ dat_boxplot_anat_range_small_iqr_filt %>%
     yintercept = 0,
     color = 'black',
     lty = 'dotdash',
-    size = 0.1
+    linewidth = 0.1
   ) +
   geom_hline(
-    yintercept = -30,
     # yintercept = -30,
+    yintercept = -5,
     color = 'black',
     lty = 'longdash',
-    size = 0.1
+    linewidth = 0.1
   ) +
   geom_hline(
     yintercept = 90,
     color = 'black',
     lty = 'longdash',
-    size = 0.1
+    linewidth = 0.1
+  ) +
+  annotate(
+    'segment',
+    # x = 13.5,
+    x = 8.5,
+    # y = -30,
+    y = -5,
+    # xend = 13.5,
+    xend = 8.5,
+    yend = 90,
+    arrow = arrow(
+      angle = 15, length = unit(3, 'mm'), ends = 'both', type = 'open'
+      ),
+    color = 'black',
+    linetype = 'solid',
+    linewidth = 0.4,
+  ) +
+  annotate(
+    'text',
+    # x = 13.5 + 2.5,
+    x = 8.5 + 2.5,
+    # y = -20,
+    # y = 80,
+    y = 40,
+    label = 'Anatomical\n ROM',
+    fontface = 'plain',
+    hjust = 'middle',
+    size = 2.5,
   ) +
   scale_y_continuous(
-      # name = expression('Median joint angle [°]'),
-      name = '',
-      breaks = seq(-400, 400, 20),
-      # minor_breaks = seq(-400, 400, 12.5)
-      # limits=c(0, NA)
+      name = expression('Median joint angle [°]'),
+      # name = NULL,
+      # breaks = seq(-400, 400, 20),
+      breaks = seq(-400, 400, 50),
+      labels = ~sub("-", "\u2212", .x) 
     ) +
   scale_x_discrete(
-    name = 'Motion',
+    name = 'Movement',
     # expand = c(0.0, 1.6, 0.0, 0.2)
     # breaks = seq(0, 30, 1)
     ) +
   scale_fill_viridis_d(
-    name = 'Motion',
+    name = 'Movement',
     begin = 0.3,
     end = 0.9
     ) +
@@ -923,6 +1038,7 @@ dat_boxplot_anat_range_small_iqr_filt %>%
     legend.margin = margin(0, 0, 0, 0, 'mm'),
     panel.background = element_blank(),
     panel.spacing = unit(0, 'mm'),
+    text = element_text(face = 'plain', size = 7),
     axis.title = element_text(face="bold", size = 7),
     axis.text.x = element_text(colour="black", size = 7),
     axis.text.y = element_text(colour="black", size = 7),
@@ -933,20 +1049,108 @@ dat_boxplot_anat_range_small_iqr_filt %>%
     panel.border = element_rect(size = 0.1),
     strip.background = element_rect(size = 0.1),
     axis.ticks = element_line(size = 0.1),
-    axis.ticks.length = unit(0.1, 'lines')
+    axis.ticks.length = unit(0.1, 'lines'),
+    plot.margin = unit(c(1, 1, 1, 1), 'mm')
   )
+  ggsave(
+    filename = 'plots/boxplot_of_medians_motion_angle_raw_dip3.png',
+    width = 8.9, height = 5.3, units = 'cm', dpi = 320, pointsize = 12)
   # ggsave(
   #   filename = 'plots/boxplot_of_medians_motion_angle_anatomical_small_range_dip3.png',
-  #   width = 3.3, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+  #   width = 8.9, height = 5.3, units = 'cm', dpi = 320, pointsize = 12)
   # ggsave(
   #   filename = 'plots/boxplot_of_medians_motion_angle_anatomical_small_range_iqr_filt_dip3.png',
-  #   width = 3.3, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+  #   width = 8.9, height = 5.3, units = 'cm', dpi = 320, pointsize = 12)
+  # ggsave(
+  #   filename = 'plots/boxplot_of_medians_motion_angle_raw_mcp2_f.png',
+  #   width = 8.8, height = 5.3, units = 'cm', dpi = 320, pointsize = 12)
   # ggsave(
   #   filename = 'plots/boxplot_of_medians_motion_angle_anatomical_small_range_mcp2_f.png',
-  #   width = 3.3, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+  #   width = 8.8, height = 5.3, units = 'cm', dpi = 320, pointsize = 12)
+  # ggsave(
+  #   filename = 'plots/boxplot_of_medians_motion_angle_anatomical_small_range_iqr_filt_mcp2_f.png',
+  #   width = 8.8, height = 5.3, units = 'cm', dpi = 320, pointsize = 12)
+  
+## Boxplot of medians for outlier detection after filtering to anatomical angles
+## and removal of small samples (n > 100, IQR share < 0.5)
+## euspen template
+dat_boxplot_anat_range_small_iqr_filt %>% 
+  mutate(
+    restimulus = as.ordered(restimulus)
+  ) %>% 
+  # filter(angles %in% c('DIP3')) %>%
+  # mutate(angles = 'DIP3 - anatomical, no small samples') %>%
+  # mutate(angles = 'DIP3 - 1.5 IQR filtered') %>%
+  filter(angles %in% c('MCP5_f')) %>%
+  # mutate(angles = 'MCP2_f - anatomical, no small samples') %>%
+  mutate(angles = 'MCP5') %>%
+  ggplot() +
+  facet_wrap(. ~ angles, scales = 'free_y') +
+  geom_boxplot(
+    aes(
+      x = restimulus,
+      y = middle,
+      fill = restimulus
+      ),
+    outlier.size = 0.1,
+    size = 0.1
+  ) +
+  geom_hline(
+    yintercept = -30,
+    # yintercept = -30,
+    color = 'black',
+    lty = 'longdash',
+    size = 0.4
+  ) +
+  geom_hline(
+    yintercept = 90,
+    color = 'black',
+    lty = 'longdash',
+    size = 0.4
+  ) +
+  scale_y_continuous(
+      name = expression('Median joint angle [°]'),
+      # name = '',
+      breaks = seq(-400, 400, 20),
+      # minor_breaks = seq(-400, 400, 12.5)
+      # limits=c(0, NA)
+    ) +
+  scale_x_discrete(
+    name = 'Movement',
+    # expand = c(0.0, 1.6, 0.0, 0.2)
+    # breaks = seq(0, 30, 1)
+    ) +
+  scale_fill_viridis_d(
+    name = 'Movement',
+    option = 'cividis',
+    begin = 0.3,
+    end = 0.9
+    ) +
+  # ggtitle('Boxplot of angle medians - 2 samples - before filtering') +
+  theme_bw() + theme(
+    text = element_text(family = 'calibri'),
+    legend.position = 'none',
+    legend.box = 'horizontal',
+    legend.box.spacing = unit(0, 'mm'),
+    legend.spacing = unit(2, 'mm'),
+    legend.margin = margin(0, 0, 0, 0, 'mm'),
+    panel.background = element_blank(),
+    panel.spacing = unit(0, 'mm'),
+    axis.title = element_text(face="bold", size = 8),
+    axis.text.x = element_text(colour="black", size = 8),
+    axis.text.y = element_text(colour="black", size = 8),
+    axis.line = element_line(size=0.1, colour = "black"),
+    plot.title = element_text(hjust = 0.5),
+    panel.grid = element_line(colour = 'grey', size = 0.1),
+    strip.text.x = element_blank(),
+    panel.border = element_rect(size = 0.1),
+    strip.background = element_rect(size = 0.1),
+    axis.ticks = element_line(size = 0.1),
+    axis.ticks.length = unit(0.1, 'lines')
+  )
   ggsave(
-    filename = 'plots/boxplot_of_medians_motion_angle_anatomical_small_range_iqr_filt_mcp2_f.png',
-    width = 3.3, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+    filename = 'plots/boxplot_of_medians_motion_angle_anatomical_small_range_iqr_filt_mcp5_euspen.png',
+    width = 9, height = 3.5, units = 'cm', dpi = 320, pointsize = 12)
   
 ## Boxplot of medians for outlier detection - after filtering to anatomical angles
 boxplot_motion_angle(
@@ -1147,7 +1351,9 @@ contingency_tables_count_movements %>%
   ) +
   scale_fill_viridis_c(
     direction = 1,
-    breaks = c(1e3, 2e4, 4e4, 6e4, 7e4)
+    breaks = c(1e3, 2e4, 4e4, 6e4, 7e4),
+    # Comma as a thousand separator
+    labels = scales::comma
     ) +
   # ggtitle('') +
   theme_bw() + theme(
@@ -1163,7 +1369,7 @@ contingency_tables_count_movements %>%
     panel.background = element_blank(),
     panel.spacing = unit(0, 'mm'),
     axis.title = element_text(face="bold", size = 6),
-    axis.text.x = element_text(colour="black", size = 4.5),
+    axis.text.x = element_text(colour="black", size = 4.0),
     axis.text.y = element_text(colour="black", size = 5),
     axis.line = element_line(size=0.1, colour = "black"),
     plot.title = element_text(hjust = 0.5),
@@ -1559,7 +1765,7 @@ corr_mat_long %>%
   # filter((finger == 3 & restimulus == 21)) %>%
   filter((finger == 5 & restimulus == 2)) %>%
   mutate(
-    x_y = paste(x, y, sep = ' - '),
+    x_y = paste(x, y, sep = ' \u2212 '),
   ) %>%
   group_by(outliers, finger, restimulus, x_y) %>% 
   mutate(
@@ -1568,7 +1774,7 @@ corr_mat_long %>%
   ) %>%
   ungroup() %>%
   mutate(
-    grouping = factor(paste(restimulus, outliers, sep = ' - '), ordered = F),
+    grouping = factor(paste(restimulus, outliers, sep = ' \u2212 '), ordered = F),
     # reverser factor order for panels
     grouping = factor(grouping, levels=rev(levels(grouping)))
   ) %>%
@@ -1613,8 +1819,10 @@ corr_mat_long %>%
     legend.margin = margin(0, 0, 0, 0, 'mm'),
     legend.text = element_text(color="black", size = 7),
     legend.title = element_text(color = 'black', size = 7, vjust = 1),
+    # Plto margins to 1 mm
+    plot.margin = margin(1, 1, 1, 1, 'mm'),
     panel.background = element_blank(),
-    panel.spacing = unit(1, 'mm'),
+    panel.spacing = unit(2.5, 'mm'),
     panel.border = element_rect(size = 0.1),
     panel.grid = element_line(colour = 'grey', size = 0.1),
     axis.title = element_text(colour="black", size = 7),
@@ -1626,15 +1834,110 @@ corr_mat_long %>%
     axis.ticks = element_line(size = 0.1),
     axis.ticks.length = unit(0.1, 'lines'),
     plot.title = element_text(size = 7, hjust = 0.5),
-    strip.text.x = element_text(size = 6.5, colour = "black"),
+    strip.text.x = element_text(size = 6.2, colour = "black"),
     strip.background = element_rect(size = 0.1)
   )
 # ggsave(
 #   filename = 'plots/boxplot_correlations_intra-finger_3_examples_iqr_filt.png',
-#   width = 3.3, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+#   width = 3.6, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
 ggsave(
   filename = 'plots/boxplot_correlations_intra-finger_5_examples_iqr_filt.png',
-  width = 3.3, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+  width = 3.6, height = 2.36, units = 'in', dpi = 320, pointsize = 12)
+
+# Save only plot examples for correlation coefficients per finger dependency - euspen
+corr_mat_long %>%
+  mutate(
+    outliers = 'With outliers'
+    ) %>%
+  add_row(
+    corr_mat_long_iqr_filt %>%
+      select(!c(x_y, q1_group, q3_group, iqr_group, lbound, ubound)) %>% 
+      mutate(outliers = 'Without outliers')
+    ) %>%
+  filter((finger == 5 & restimulus == 10 & x == 'MCP5_f' & y == 'PIP5')) %>%
+  mutate(
+    x_y = paste(x, y, sep = ' - '),
+  ) %>%
+  group_by(outliers, finger, restimulus, x_y) %>% 
+  mutate(
+    corr_median_abs = abs(median(corr)),
+    restimulus = paste('Movement:', restimulus)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    grouping = factor(outliers, ordered = F)
+    # reverser factor order for panels
+    # grouping = factor(grouping, levels=rev(levels(grouping)))
+  ) %>%
+  ggplot() +
+  facet_wrap(. ~ grouping, scales = 'fixed', nrow = 1) +
+  geom_boxplot(
+    aes(
+      x = corr,
+      y = x_y,
+      fill = corr_median_abs,
+    ),
+    width = 0.3, alpha = 1, outlier.size = 0.7, outlier.stroke = 0.1, size = 0.2
+  ) + 
+  scale_x_continuous(
+    name = expression('Pearson\'s correlation coefficient'),
+    breaks = seq(-1, 1, 0.50)
+  ) +
+  scale_y_discrete(
+    name = 'Dependency'
+  ) +
+  # scale_fill_viridis_c(
+  #   name = 'Absolute median correlation',
+  #   option = 'viridis',
+  #   begin = 0.4,
+  #   limits = c(0.7, 1),
+  #   breaks = seq(0.7, 1, 0.1)
+  #   ) +
+  scale_fill_gradient(
+    low = 'dodgerblue2',
+    high = 'orangered3',
+    breaks = seq(0.7, 1, 0.1)
+    ) +
+  guides(
+    fill = guide_colorbar(
+      nrow = 1,
+      barheight = 0.5
+      )
+  ) +
+  # ggtitle('Finger 5') +
+  theme_bw() + theme(
+    # legend.position = 'top',
+    text = element_text(family = 'calibri'),
+    legend.position = 'none',
+    legend.box = 'horizontal',
+    legend.box.spacing = unit(0, 'mm'),
+    legend.spacing = unit(2, 'mm'),
+    legend.margin = margin(0, 0, 0, 0, 'mm'),
+    legend.text = element_text(color="black", size = 8),
+    legend.title = element_text(color = 'black', size = 8, vjust = 1),
+    panel.background = element_blank(),
+    panel.spacing = unit(1, 'mm'),
+    panel.border = element_rect(size = 0.1),
+    panel.grid = element_line(colour = 'grey', size = 0.1),
+    axis.title = element_text(colour="black", size = 8),
+    # axis.title.x = element_text(face="bold", size = 9),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(colour="black", size = 8),
+    # axis.text.y = element_text(colour="black", size = 7),
+    axis.text.y = element_blank(),
+    axis.line = element_line(size=0.1, colour = "black"),
+    axis.ticks = element_line(size = 0.1),
+    axis.ticks.length = unit(0.1, 'lines'),
+    plot.title = element_text(size = 8, hjust = 0.5),
+    # strip.text.x = element_text(size = 6.5, colour = "black"),
+    strip.text.x = element_text(
+      size = 8, colour = "black", margin = margin(0.5, 0.5, 0.5, 0.5, 'mm')
+      ),
+    strip.background = element_rect(size = 0.1)
+  )
+ggsave(
+  filename = 'plots/boxplot_correlations_intra-MC5-PIP5_examples_iqr_filt_euspen.png',
+    width = 9, height = 2.0, units = 'cm', dpi = 320, pointsize = 12)
 
 ## Extract remaining data after filtering based on correlation matrices
 ## for selection over entire dataset
@@ -1898,7 +2201,9 @@ ggsave(
 corr_mat_long_iqr_filt_high_iqr_share_filt %>% 
   group_by(finger, restimulus, x_y) %>%
   mutate(
-    corr_median = round(median(corr), 2)
+    corr_median = round(median(corr), 2),
+    corr_median = sub('-', '\u2212', as.character(corr_median)),
+    x_y = sub('-', '\u2212', x_y)
     ) %>% ungroup() %>% 
   select(x_y, restimulus, corr_median) %>% 
   mutate(restimulus = as.ordered(restimulus)) %>% 
@@ -1976,7 +2281,84 @@ ggsave(
     'plots/count_joint_dependency_movement_',
     'anatomical_small_range_iqr_filt_after_high_corr.png'
     ),
-  width = 6.2, height = 3.80, units = 'in', dpi = 320, pointsize = 12
+  width = 18.29, height = 11.03, units = 'cm', dpi = 320, pointsize = 12
+  )
+
+# Plot highly correlated intra-joint dependencies vs movement
+# Only correlations with color bar, no grouping, no numbers
+corr_mat_long_iqr_filt_high_iqr_share_filt %>% 
+  mutate(
+    x = case_when(
+      str_detect(x, '_f') ~ str_sub(x, end = -3L),
+      TRUE ~ x
+    ),
+    y = case_when(
+      str_detect(y, '_f') ~ str_sub(y, end = -3L),
+      TRUE ~ y
+    ),
+    x_y = paste(x, y, sep = '-')
+  ) %>% 
+  group_by(finger, restimulus, x_y) %>%
+  mutate(
+    corr_median = round(median(corr), 2),
+    ) %>% 
+  ungroup() %>% 
+  mutate(
+    abs_med_corr = abs(corr_median),
+    abs_med_corr = scales::rescale(
+      abs_med_corr, to = c(0.7, 1))
+  ) %>%
+  select(x_y, restimulus, abs_med_corr) %>% 
+  mutate(restimulus = as.ordered(restimulus)) %>% 
+  distinct(x_y, restimulus, abs_med_corr) %>% 
+  arrange(restimulus) %>% 
+  arrange(x_y) %>% 
+  ggplot(
+    aes(
+      x = restimulus, y = x_y, color = abs_med_corr,
+      )
+    ) +
+  geom_point(size = 2.5) +
+  scale_x_discrete(name = 'Movement') +
+  # scale_y_discrete(name = 'Dependency') +
+  scale_y_discrete(name = NULL) +
+  scale_color_gradient(
+    low = 'dodgerblue2',
+    high = 'orangered3',
+    breaks = c(0.7, 0.8, 0.9, 1),
+    ) +
+  # ggtitle('Count of highly correlated \u2265 0.7 joint dependencies per movement') +
+  theme_bw() + theme(
+    text = element_text(family = 'calibri'),
+    legend.position = 'right',
+    legend.box = 'vertical',
+    legend.box.spacing = unit(2, 'mm'),
+    legend.spacing = unit(1, 'mm'),
+    legend.margin = margin(1, 0, 0, 1, 'mm'),
+    legend.title = element_blank(),
+    legend.key.width = unit(0.6, 'lines'),
+    legend.key.height = unit(1.5, 'lines'),
+    legend.text = element_text(size = 6.5, vjust = 0.5),
+    panel.background = element_blank(),
+    panel.spacing = unit(0, 'mm'),
+    axis.title = element_text(face="bold", size = 6.5),
+    axis.text.x = element_text(colour="black", size = 6.5),
+    axis.text.y = element_text(colour="black", size = 6.5),
+    axis.line = element_line(size=0.2, colour = "black"),
+    plot.title = element_text(hjust = 0.5),
+    strip.text.x = element_text(size = 6.5, colour = "black"),
+    panel.grid = element_line(colour = 'grey', size = 0.1),
+    panel.border = element_rect(linewidth = 0.1),
+    strip.background = element_rect(size = 0.1),
+    axis.ticks = element_line(size = 0.1),
+    axis.ticks.length = unit(0.1, 'lines')
+  )
+ggsave(
+  filename = paste0(
+    'plots/euspen_count_joint_dependency_movement_',
+    'anatomical_small_range_iqr_filt_after_high_corr.png'
+    ),
+  width = 17, height = 5, units = 'cm', dpi = 320, pointsize = 12
   )
 
 # Contingency tables after correlation filtering per dependency
@@ -2106,6 +2488,7 @@ contingency_tables_after_corr_filt[[dependency]] %>%
   # filter(restimulus == 3) %>%
   filter(restimulus == 1) %>%
   mutate(
+    dependency = sub('-', '\u2212', dependency),
     # grouping = paste0(dependency,', ', 'Movement: ', restimulus, ', median r = 0.94'),
     grouping = paste0(dependency,', ', 'Movement: ', restimulus, ', median r = 0.76'),
     subject = as.ordered(subject),
@@ -2120,13 +2503,14 @@ contingency_tables_after_corr_filt[[dependency]] %>%
     position = 'stack'
     ) +
   guides(
-    fill = guide_legend(title = 'Rerepetition', nrow = 1)
+    fill = guide_legend(title = 'Repetition', nrow = 1)
   ) +
   scale_x_discrete(name = 'Subject') +
   scale_y_continuous(
     # name = 'No. observations',
     name = NULL,
-    breaks = seq(0, 60000, 10000)
+    breaks = seq(0, 60000, 10000),
+    labels = scales::comma
     ) +
   scale_fill_nejm() +
   theme_bw() + theme(
@@ -2142,8 +2526,8 @@ contingency_tables_after_corr_filt[[dependency]] %>%
     panel.background = element_blank(),
     panel.spacing = unit(0, 'mm'),
     axis.title = element_text(face="bold", size = 6),
-    # axis.text.x = element_text(colour="black", size = 5.0),
-    axis.text.x = element_text(colour="black", size = 6),
+    axis.text.x = element_text(colour="black", size = 5.3),
+    # axis.text.x = element_text(colour="black", size = 6),
     axis.text.y = element_text(colour="black", size = 6),
     axis.line = element_line(size=0.1, colour = "black"),
     plot.title = element_text(hjust = 0.5),
@@ -2152,7 +2536,8 @@ contingency_tables_after_corr_filt[[dependency]] %>%
     panel.border = element_rect(size = 0.1),
     strip.background = element_rect(size = 0.1),
     axis.ticks = element_line(size = 0.1),
-    axis.ticks.length = unit(0.1, 'lines')
+    axis.ticks.length = unit(0.1, 'lines'),
+    plot.margin = unit(c(1, 1, 1, 1), 'mm')
   )
 ggsave(
   filename = paste0(
@@ -2160,8 +2545,8 @@ ggsave(
     gsub(" ", "", dependency, fixed = T),
     '_anatomical_small_range_iqr_filt_after_high_corr.png'
     ),
-  # width = 3.48, height = 2.36, units = 'in', dpi = 320, pointsize = 12
-  width = 2.99, height = 2.36, units = 'in', dpi = 320, pointsize = 12
+  # width = 10.39, height = 5.59, units = 'cm', dpi = 320, pointsize = 12
+  width = 7.49, height = 5.53, units = 'cm', dpi = 320, pointsize = 12
   )
 
 # Count subject, rerepetitions and observations for MCP3_f - PIP3 (movement 3) and 
@@ -2313,18 +2698,18 @@ filtered_selection_corr_high_iqr_filt %>%
   select(!c(subject, rerep_count_subj)) %>%
   distinct() %>% 
   rename(
-    Subjects = subj_count, Rerepetitions = rerep_count,
-    'Median\n rerepetitions\n per subject' = rerep_median_subj
+    Subjects = subj_count, Repetitions = rerep_count,
+    'Median\n repetitions\n per subject' = rerep_median_subj
   ) %>% 
   pivot_longer(
-    cols = c(Subjects, Rerepetitions, 'Median\n rerepetitions\n per subject'),
+    cols = c(Subjects, Repetitions, 'Median\n repetitions\n per subject'),
     names_to = 'grouping',
     values_to = 'Count',
   ) %>% 
   mutate(
     grouping = ordered(
       grouping, 
-      levels = c('Subjects', 'Rerepetitions', 'Median\n rerepetitions\n per subject'))
+      levels = c('Subjects', 'Repetitions', 'Median\n repetitions\n per subject'))
   ) %>% 
   group_by(grouping) %>% 
   ggplot(
@@ -2340,7 +2725,7 @@ filtered_selection_corr_high_iqr_filt %>%
     width = 0.3, alpha = 1, outlier.size = 0.3, outlier.stroke = 0.1, size = 0.2
   ) + 
   # geom_jitter(width = 0.00, height = 0.2) +
-  geom_dotplot(binaxis = 'x', stackdir = 'up', dotsize = 0.07) +
+  geom_dotplot(binaxis = 'x', stackdir = 'up', dotsize = 0.06) +
   # stat_summary(
   #   fun.data = function(x, )
   # ) +
@@ -2397,12 +2782,14 @@ filtered_selection_corr_high_iqr_filt %>%
     plot.title = element_text(size = 5, hjust = 0.5),
     # strip.text.x = element_text(size = 6.5, colour = "black"),
     strip.text.x = element_blank(),
-    strip.background = element_blank()
+    strip.background = element_blank(),
+    plot.margin = unit(c(1, 1, 1, 1), 'mm')
   )
 ggsave(
   filename = 'plots/boxplot_data_final_structure.png',
-  width = 4.5, height = 2.5, units = 'in', dpi = 320, pointsize = 12)
+  width = 13, height = 6, units = 'cm', dpi = 320, pointsize = 12)
 
+########## START HERE AFTER LOADING dat_flex_anat #################
 # Stratified split to n fold while using last for test and rest for train data
 stratified_train_test <- function(subj_rerep, n_folds=5){
   #' Split data to breaks_num folds with as much subjects as possible in each fold
@@ -2493,10 +2880,12 @@ weight_scale_transform_model_matrix <- function(
     # select response and all variables (starting with x_joint)
     dependency_restimulus_dat %>% select(y_joint_scaled, starts_with('x_joint'))
     )
-  # Standardize all predictors and their interactions (exclude intercept)
-  model_matrix_interactions[,-1] <- scale(
-    model_matrix_interactions[,-1], center = T, scale = T
+  # Standardize all predictors and their interactions and set intercepts to ones
+  # since scaling messes it up
+  model_matrix_interactions <- scale(
+    model_matrix_interactions, center = T, scale = T
     )
+  model_matrix_interactions[,1] = 1
   # Remove the intercept from model.matrix if necessary
   if (keep_intercept) {
     return(list(
@@ -2603,48 +2992,96 @@ panel_plot_fit <- function(
       )
     }
   plot_obj <- plot_dat$dat %>% 
+    mutate(
+      foldid = case_when(
+        foldid == 1 ~ 'Train',
+        foldid == 2 ~ 'Train',
+        foldid == 3 ~ 'Train',
+        foldid == 4 ~ 'Train',
+        foldid == 5 ~ 'Test',
+        TRUE ~ 'Train'
+      ),
+      foldid = factor(foldid)
+    ) %>% 
     ggplot(aes_string(x = x_joint, y = y_joint)) +
-    geom_point(size = 0.1) +
+    geom_point(aes(color = foldid), size = 0.05) +
     geom_line(
-      aes_string(x = x_joint, y = 'predictions'),
-      color = pal_nejm('default', alpha = 0.8)(8)[2],
-      size = 1.5
-      ) +
-    geom_smooth(
-      method = 'gam',
-      formula = y ~ s(x, bs = "cs", k=smooth_term_dim), se = F,
-      color = pal_nejm('default', alpha = 0.6)(8)[1]
+      aes(.data[[x_joint]], y = predictions, color = 'Model'),
+      # color = pal_nejm('default', alpha = 0.8)(8)[2],
+      size = 1.0
       ) +
     scale_x_continuous(
-      expand = c(0, 0)
+      expand = c(0, 0),
+      labels = ~sub("-", "\u2212", .x) 
     ) +
     scale_y_continuous(
-      expand = c(0, 0)
+      expand = c(0, 0),
+      labels = ~sub("-", "\u2212", .x) 
+    ) +
+    scale_color_manual(
+      values = c(
+        "Train" = 'black', "Test" = 'firebrick3',
+        'Model' = pal_nejm('default', alpha = 0.8)(8)[2]
+        )
     ) +
     ggtitle(paste('Movement:', unique(plot_dat$dat$restimulus))) +
+    guides(
+      color = guide_legend(
+        title = NULL,
+        override.aes = list(size = 0.5)
+      )
+    ) +
     theme_bw() + theme(
-      legend.position = 'none',
+      legend.position = 'top',
+      legend.text = element_text(
+        colour="black", size = 5, margin = margin(0, 0, 0, 0, 'mm')
+        ),
       legend.box = 'horizontal',
       legend.box.spacing = unit(0, 'mm'),
-      legend.spacing = unit(2, 'mm'),
+      legend.box.margin = margin(0, 0, -0.5, 0, 'mm'),
+      legend.box.background = element_blank(),
+      legend.background = element_blank(),
+      legend.spacing = unit(0, 'mm'),
       legend.margin = margin(0, 0, 0, 0, 'mm'),
       panel.background = element_blank(),
-      panel.spacing = unit(0, 'mm'),
-      axis.title = element_text(face="bold", size = 7),
+      panel.spacing.x = unit(0.5, 'mm'),
+      panel.spacing.y = unit(1.0, 'mm'),
+      axis.title = element_text(face="bold", size = 5),
       axis.text.x = element_text(colour="black", size = 5),
-      axis.text.y = element_text(colour="black", size = 7),
+      axis.text.y = element_text(colour="black", size = 5),
       axis.line = element_line(size=0.1, colour = "black"),
-      plot.title = element_text(hjust = 0.5, size = 7),
+      plot.margin = margin(0.2, 0.4, 0.2, 0.2, 'mm'),
+      plot.title = element_text(
+        hjust = 0.5, size = 5, margin = margin(0, 0, -0.5, 0, 'mm')
+        ),
+      title = element_text(
+        hjust = 0.5, size = 5, margin = margin(0, 0, 0, 0, 'mm')
+        ),
       panel.grid = element_line(colour = 'grey', size = 0.1),
-      strip.text.x = element_text(size = 7, colour = "black"),
-      strip.text.y = element_text(size = 7, colour = "black"),
+      strip.text.x = element_text(
+        size = 5, colour = "black", margin = margin(0, 0, 0, 0, 'pt')
+        ),
+      strip.text.y = element_text(
+        size = 5, colour = "black", margin = margin(0, 0, 0, 0, 'pt')
+        ),
       panel.border = element_rect(size = 0.1),
       strip.background = element_rect(size = 0.1),
       axis.ticks = element_line(size = 0.1),
       axis.ticks.length = unit(0.1, 'lines')
       )
+  if (!is.null(smooth_term_dim)) {
+    plot_obj <- plot_obj + 
+      geom_smooth(
+      method = 'gam',
+      formula = y ~ s(x, bs = "cs", k=smooth_term_dim), se = F,
+      color = pal_nejm('default', alpha = 0.6)(8)[1]
+      )
+  }
   if (identical(grid_wrap_facet, facet_grid)) {
-    plot_obj + grid_wrap_facet(rerepetition ~ subject)
+    plot_obj + grid_wrap_facet(
+      rows = vars(rerepetition),
+      cols = vars(subject),
+      switch = 'y')
   }
   else{
     plot_obj + grid_wrap_facet(~subject_rerepetition)
@@ -2923,8 +3360,6 @@ fit_lme_restimulus_dependency <- function(
   return(list('fit' = fit))
 }
   
-#TODO: residuals must be multiplied by sqrt(w), giving what's sometimes called
-#TODO: weighted standardized residuals. 
 compute_predictions_residuals <- function(in_dat, fit, y_joint){
   #' Use train/test data and model matrix to compute predictions and residuals,
   #' both standardized and rescaled 
@@ -2966,171 +3401,298 @@ compute_predictions_residuals <- function(in_dat, fit, y_joint){
   dat_with_pred_resid <- dat_with_pred_resid %>% 
     mutate(
         # Weighted standardized residuals (multiply with sqrt(obs_weight))
-        resids_scaled = (y_joint_scaled - predictions_scaled) * sqrt(obs_weight),
+        resids_scaled = (y_joint_scaled - predictions_scaled), #* sqrt(obs_weight),
         # Rescaled predictions
         predictions = predictions_scaled *
           attr(in_dat$dat$y_joint_scaled, 'scaled:scale') +
           attr(in_dat$dat$y_joint_scaled, 'scaled:center'),
         # Rescaled residuals - multiply by weights
-        resids = (get(y_joint) - predictions) * sqrt(obs_weight)
+        resids = (get(y_joint) - predictions) #* sqrt(obs_weight)
     )
   # Return new data frame with predictions and residuals
   return(dat_with_pred_resid)
 }
   
-# dependency <- 'MCP3_f - PIP3'
+# Empty tibble for storing results
+model_results <- tibble(dependency='', restimulus=0)
+model_results <- read_csv('model_results_intra_finger_params5.csv')
+model_results %>% View()
 # dependency <- 'CMC5 - MCP5_f'
 # dependency <- 'CMC1_f - MCP1'
 # Lowest number of subjects present
 # dependency <- 'MCP5_f - PIP5'
-dependency <- sample(dependency_list, 1)
-# for (dependency in dependency_list) {
-#   # Selection of joint columns
-  x_joint <- filtered_selection_corr_high_iqr_filt %>%
-    filter(x_y == dependency) %>%
-    distinct(x, y) %>% pull(x)
-  y_joint <- filtered_selection_corr_high_iqr_filt %>%
-    filter(x_y == dependency) %>%
-    distinct(x, y) %>% pull(y)
-  # Only highly correlated movements
-  rest_list <- filtered_selection_corr_high_iqr_filt %>% 
-    filter(x_y == dependency) %>%
-    distinct(restimulus) %>% 
-    pull(restimulus)
-  # Loop over each movement
-  rest_select <- sample(rest_list, 1)
-  # Lowest number of subjects present
-  # rest_select <- 13
-  # for (rest_select in rest_list) {
-    # Selection of observations after all filtering
-    subj_rerep_select <- filtered_selection_corr_high_iqr_filt %>% 
-      filter(x_y == dependency & restimulus == rest_select) %>%
-      distinct(restimulus, subject, rerepetition) %>% 
-      select(subject, rerepetition) %>% 
-      # Stratified 5-fold data split (last fold -> test, 4 folds -> train)
-      stratified_train_test(n_folds = 5)
-    # Collect data from Spark - train
-    train_dat <- collect_spark_data(
-      restimulus_select = rest_select, 
-      x_joint = x_joint,
-      y_joint = y_joint,
-      subject_rerepetition_select = subj_rerep_select$train,
-      spark_tbl_data = dat_flex_anat,
-      keep_intercept = T,
-      info = paste(
-        'Collecting train spark data - Movement:', rest_select, '- Dependency:', dependency
+# dependency <- sample(dependency_list, 1)
+dependency <- 'MCP3_f - PIP3'
+dependency <- 'CMC5 - MCP5_f'
+dependency <- 'MCP4_f - DIP4'
+for (a in 1:3) {
+  for (dependency in dependency_list) {
+    print(paste('Dependency:', dependency))
+    # Selection of joint columns
+    x_joint <- filtered_selection_corr_high_iqr_filt %>%
+      filter(x_y == dependency) %>%
+      distinct(x, y) %>% pull(x)
+    y_joint <- filtered_selection_corr_high_iqr_filt %>%
+      filter(x_y == dependency) %>%
+      distinct(x, y) %>% pull(y)
+    # Only highly correlated movements
+    rest_list <- filtered_selection_corr_high_iqr_filt %>% 
+      filter(x_y == dependency) %>%
+      distinct(restimulus) %>% 
+      pull(restimulus)
+    # Loop over each movement
+    # rest_select <- sample(rest_list, 1)
+    rest_select <- 3
+    rest_select <- 2
+    rest_select <- 12
+    for (rest_select in rest_list) {
+      print(paste('  Restimulus:', rest_select))
+      # Result list for storing variables
+      result_list = list()
+      result_list <- c(result_list, list(dependency=dependency, restimulus=rest_select))
+      # Selection of observations after all filtering
+      subj_rerep_select <- filtered_selection_corr_high_iqr_filt %>% 
+        filter(x_y == dependency & restimulus == rest_select) %>%
+        distinct(restimulus, subject, rerepetition) %>% 
+        select(subject, rerepetition) %>% 
+        # Stratified 5-fold data split (last fold -> test, 4 folds -> train)
+        stratified_train_test(n_folds = 5)
+      # Collect data from Spark - train
+      train_dat <- collect_spark_data(
+        restimulus_select = rest_select, 
+        x_joint = x_joint,
+        y_joint = y_joint,
+        subject_rerepetition_select = subj_rerep_select$train,
+        spark_tbl_data = dat_flex_anat,
+        keep_intercept = T,
+        info = ''
       )
-    )
-    # Collect data from Spark - test
-    test_dat <- collect_spark_data(
-      restimulus_select = rest_select,
-      x_joint = x_joint,
-      y_joint = y_joint,
-      subject_rerepetition_select = subj_rerep_select$test,
-      spark_tbl_data = dat_flex_anat,
-      keep_intercept = T,
-      info = paste(
-        'Collecting test spark data - Movement:',
-        rest_select, '- Dependency:', dependency
-        ))
-    # Fitting GLM model
-    fit_glm <- fit_glm_restimulus_dependency(
-      rest_dep = train_dat,
-      # Always include - 1 (lin), 2(poly), 3(exp)
-      keep_variables = c(1, 2, 3),
-      fit_intercept = T,
-      info = paste(
-        'GLM cv fitting - Movement:', rest_select, '- Dependency:', dependency
+      result_list <-c(result_list, num_obs_train=train_dat[1]$dat %>% nrow())
+      result_list <-c(result_list, num_subj_train=train_dat[1]$dat %>% pull(subject) %>% levels() %>% length())
+      result_list <-c(result_list, num_subj_rerep_train=train_dat[1]$dat %>% pull(subject_rerepetition) %>% unique() %>% length())
+      # Collect data from Spark - test
+      test_dat <- collect_spark_data(
+        restimulus_select = rest_select,
+        x_joint = x_joint,
+        y_joint = y_joint,
+        subject_rerepetition_select = subj_rerep_select$test,
+        spark_tbl_data = dat_flex_anat,
+        keep_intercept = T,
+        info = ''
+          )
+      result_list <-c(result_list, num_obs_test=test_dat[1]$dat %>% nrow())
+      result_list <-c(result_list, num_subj_test=test_dat[1]$dat %>% pull(subject) %>% levels() %>% length())
+      result_list <-c(result_list, num_subj_rerep_test=test_dat[1]$dat %>% pull(subject_rerepetition) %>% unique() %>% length())
+      # Fitting GLM model
+      fit_glm <- fit_glm_restimulus_dependency(
+        rest_dep = train_dat,
+        # Always include - 1 (lin), 2(poly), 3(exp)
+        keep_variables = c(1, 2, 3),
+        fit_intercept = T,
+        info = ''
         )
+      # Number of coefficients and error for glm - train + test dataset
+      coeffs = coef(fit_glm$fit, s = 'lambda.1se', gamma = 'gamma.1se')
+      result_list <- c(result_list, num_coeffs_glm=coeffs[coeffs[,1]!= 0] %>% length())
+      result_list <- c(result_list,  compute_predictions_residuals(
+        in_dat = train_dat,
+        fit = fit_glm,
+        y_joint = y_joint
+        ) %>% 
+        summarise(
+          wmae_glm_train = sum(abs(resids) * obs_weight) / sum(obs_weight),
+          wwmape_glm_train = sum(abs(resids) * obs_weight) / sum(abs(get(y_joint)) * obs_weight)
+          ) %>% as.list()
       )
-    # Fitting LME model
-    fit_lme <- fit_lme_restimulus_dependency(
-      rest_dep = train_dat,
-      # Keep 1se regularized variables from GLM fit
-      keep_variables = fit_glm$coef_names_1se,
-      # Keep min regularized variables from GLM fit
-      # keep_variables = fit_glm$coef_names_min,
-      # Keep all variables (except Intercept)
-      # keep_variables = dimnames(train_dat$model_matrix)[[2]][2:10],
-      info = paste(
-        'LME fitting - Movement:', rest_select, '- Dependency:', dependency
+      result_list <- c(result_list,  compute_predictions_residuals(
+        in_dat = test_dat,
+        fit = fit_glm,
+        y_joint = y_joint
+        ) %>% 
+        summarise(
+          wmae_glm_test = sum(abs(resids) * obs_weight) / sum(obs_weight),
+          wwmape_glm_test = sum(abs(resids) * obs_weight) / sum(abs(get(y_joint)) * obs_weight)
+          ) %>% as.list()
+      )
+      # Fitting LME model
+      fit_lme <- fit_lme_restimulus_dependency(
+        rest_dep = train_dat,
+        # Keep 1se regularized variables from GLM fit
+        keep_variables = fit_glm$coef_names_1se,
+        # Keep min regularized variables from GLM fit
+        # keep_variables = fit_glm$coef_names_min,
+        # Keep all variables (except Intercept)
+        # keep_variables = dimnames(train_dat$model_matrix)[[2]][2:10],
+        info = ''
         )
-      )
-    # First step in model refinement -> significant + effect size
-    # Select only highly significant ones < 0.001 (5th column is with p-values)
-    fit_lme$sig_coefs <- fit_lme$fit %>% 
-      summary() %>% coefficients() %>% subset(select = 5) < 0.001
-    fit_lme$sig_coefs <- dimnames(fit_lme$sig_coefs)[[1]] %>% 
-      subset(fit_lme$sig_coefs, 1)
-    fit_lme <- fit_lme_restimulus_dependency(
-      rest_dep = train_dat,
-      # Keep only highly significant variables
-      keep_variables = fit_lme$sig_coefs,
-      info = paste(
-        'LME fitting significant - Movement:', rest_select, '- Dependency:', dependency
+      # First step in model refinement -> significant + effect size
+      # Select only highly significant ones < 0.001 (5th column is with p-values)
+      fit_lme$sig_coefs <- fit_lme$fit %>% 
+        summary() %>% coefficients() %>% subset(select = 5) < 0.001
+      fit_lme$sig_coefs <- dimnames(fit_lme$sig_coefs)[[1]] %>% 
+        subset(fit_lme$sig_coefs, 1)
+      fit_lme <- fit_lme_restimulus_dependency(
+        rest_dep = train_dat,
+        # Keep only highly significant variables
+        keep_variables = fit_lme$sig_coefs,
+        info = ''
         )
-      )
-    # Select only predictors with moderate and strong effect
-    # Standardized coefficient absolute value >0.29
-    fit_lme$eff_coefs <- fit_lme$fit %>% 
-      summary() %>% coefficients() %>% subset(select = 1) %>% abs() > 0.29
-    fit_lme$eff_coefs <- dimnames(fit_lme$eff_coefs)[[1]] %>% 
-      subset(fit_lme$eff_coefs, 1)
-    fit_lme <- fit_lme_restimulus_dependency(
-      rest_dep = train_dat,
-      # Keep only highly significant variables
-      keep_variables = fit_lme$eff_coefs,
-      info = paste(
-        'LME fitting with effect - Movement:', rest_select, '- Dependency:', dependency
+      # Select only predictors with moderate and strong effect
+      # Standardized coefficient absolute value >0.29
+      fit_lme$eff_coefs <- fit_lme$fit %>% 
+        summary() %>% coefficients() %>% subset(select = 1) %>% abs() > 0.29
+      fit_lme$eff_coefs <- dimnames(fit_lme$eff_coefs)[[1]] %>% 
+        subset(fit_lme$eff_coefs, 1)
+      fit_lme <- fit_lme_restimulus_dependency(
+        rest_dep = train_dat,
+        # Keep only variables with strong effect
+        keep_variables = fit_lme$eff_coefs,
+        info = ''
         )
-      )
-    # Second step in model refinement -> significant + effect size
-    # Select only highly significant ones < 0.001 (5th column is with p-values)
-    fit_lme$sig_coefs <- fit_lme$fit %>% 
-      summary() %>% coefficients() %>% subset(select = 5) < 0.001
-    fit_lme$sig_coefs <- dimnames(fit_lme$sig_coefs)[[1]] %>% 
-      subset(fit_lme$sig_coefs, 1)
-    fit_lme <- fit_lme_restimulus_dependency(
-      rest_dep = train_dat,
-      # Keep only highly significant variables
-      keep_variables = fit_lme$sig_coefs,
-      info = paste(
-        'LME fitting significant - Movement:', rest_select, '- Dependency:', dependency
+      # Second step in model refinement -> significant + effect size
+      # Select only highly significant ones < 0.001 (5th column is with p-values)
+      fit_lme$sig_coefs <- fit_lme$fit %>% 
+        summary() %>% coefficients() %>% subset(select = 5) < 0.001
+      fit_lme$sig_coefs <- dimnames(fit_lme$sig_coefs)[[1]] %>% 
+        subset(fit_lme$sig_coefs, 1)
+      fit_lme <- fit_lme_restimulus_dependency(
+        rest_dep = train_dat,
+        # Keep only highly significant variables
+        keep_variables = fit_lme$sig_coefs,
+        info = ''
         )
-      )
-    # Select only predictors with moderate and strong effect
-    # Standardized coefficient absolute value >0.29
-    fit_lme$eff_coefs <- fit_lme$fit %>% 
-      summary() %>% coefficients() %>% subset(select = 1) %>% abs() > 0.29
-    fit_lme$eff_coefs <- dimnames(fit_lme$eff_coefs)[[1]] %>% 
-      subset(fit_lme$eff_coefs, 1)
-    fit_lme <- fit_lme_restimulus_dependency(
-      rest_dep = train_dat,
-      # Keep only highly significant variables
-      keep_variables = fit_lme$eff_coefs,
-      info = paste(
-        'LME fitting with effect - Movement:', rest_select, '- Dependency:', dependency
+      # Select only predictors with moderate and strong effect
+      # Standardized coefficient absolute value >0.29
+      fit_lme$eff_coefs <- fit_lme$fit %>% 
+        summary() %>% coefficients() %>% subset(select = 1) %>% abs() > 0.29
+      fit_lme$eff_coefs <- dimnames(fit_lme$eff_coefs)[[1]] %>% 
+        subset(fit_lme$eff_coefs, 1)
+      fit_lme <- fit_lme_restimulus_dependency(
+        rest_dep = train_dat,
+        # Keep only variables with strong effect
+        keep_variables = fit_lme$eff_coefs,
+        info = ''
         )
+      # Third step in model refinement -> significant + effect size
+      # Select only highly significant ones < 0.001 (5th column is with p-values)
+      fit_lme$sig_coefs <- fit_lme$fit %>% 
+        summary() %>% coefficients() %>% subset(select = 5) < 0.001
+      fit_lme$sig_coefs <- dimnames(fit_lme$sig_coefs)[[1]] %>% 
+        subset(fit_lme$sig_coefs, 1)
+      fit_lme <- fit_lme_restimulus_dependency(
+        rest_dep = train_dat,
+        # Keep only highly significant variables
+        keep_variables = fit_lme$sig_coefs,
+        info = ''
+        )
+      # Select only predictors with moderate and strong effect
+      # Standardized coefficient absolute value >0.29
+      fit_lme$eff_coefs <- fit_lme$fit %>% 
+        summary() %>% coefficients() %>% subset(select = 1) %>% abs() > 0.29
+      fit_lme$eff_coefs <- dimnames(fit_lme$eff_coefs)[[1]] %>% 
+        subset(fit_lme$eff_coefs, 1)
+      fit_lme <- fit_lme_restimulus_dependency(
+        rest_dep = train_dat,
+        # Keep only variables with strong effect
+        keep_variables = fit_lme$eff_coefs,
+        info = ''
+        )
+      # Number of coeffs remaining in lme
+      result_list <- c(
+        result_list, 
+        setNames(
+          fit_lme$fit %>% coef() %>% .[['subject']] %>% length() %>% as.list(),
+          'num_coeffs_lme'
+          )
+        )
+      ###### Random effects - mean and sd
+      result_list <- c(
+        result_list, fit_lme$fit %>% coef() %>% .[['subject']] %>% 
+          select('(Intercept)') %>% rename(subj_intercept='(Intercept)') %>%
+          summarise(across(.cols = everything(), list(mean = mean, var = var))) %>%
+          as.list()
+        )
+      # Compute variance and ICC of random effects
+      result_list <- c(
+        result_list, fit_lme$fit %>% VarCorr() %>%  as_tibble() %>%
+          select(-c(var1, var2, sdcor)) %>% rename(variance=vcov) %>%
+          mutate(ICC = variance / sum(variance)) %>% filter(grp=='subject') %>%
+          select(-grp) %>% rename(rand_eff_var=variance, rand_eff_ICC=ICC) %>% 
+          as.list()
+        )
+      ###### Fixed-effects coefficients
+      coeffs <- fit_lme$fit %>% summary() %>% coef()
+      # Fixed effect coefficient - add scaled estimates and t values
+      result_list <- c(
+        result_list, 
+        setNames(as.list(coeffs[,1]), paste0(coeffs %>% rownames(), '_stand_est'))
+        )
+      result_list <- c(
+        result_list, 
+        setNames(as.list(coeffs[,4]), paste0(coeffs %>% rownames(), '_stand_t_val'))
+        )
+      # Get scaling (sd) and centering (mean) for dependent variable back-transformation
+      result_list <- c(
+        result_list,
+        setNames(
+          as.list(attr(train_dat$dat$y_joint_scaled, 'scaled:scale')),
+          'y_joint_scale'
+          ))
+      result_list <- c(
+        result_list,
+        setNames(
+          as.list(attr(train_dat$dat$y_joint_scaled, 'scaled:center')),
+          'y_joint_center'
+          ))
+      # Get scaling (sd) and centering (mean) for coeff back-transformation
+      result_list <- c(
+        result_list, 
+        setNames(
+          as.list(attr(train_dat$model_matrix, 'scaled:scale')[coeffs %>% rownames()]),
+          coeffs %>% rownames() %>% paste0('_scale')
+          ))
+      # Store lme wMAE and wwMAPE on train and test datasets
+      result_list <- c(
+        result_list, 
+        setNames(
+          as.list(attr(train_dat$model_matrix, 'scaled:center')[coeffs %>% rownames()]),
+          coeffs %>% rownames() %>% paste0('_center')
+          ))
+      result_list <- c(result_list,  compute_predictions_residuals(
+        in_dat = train_dat,
+        fit = fit_lme,
+        y_joint = y_joint
+        ) %>% 
+        summarise(
+          wmae_lme_train = sum(abs(resids) * obs_weight) / sum(obs_weight),
+          wwmape_lme_train = sum(abs(resids) * obs_weight) / sum(abs(get(y_joint)) * obs_weight)
+          ) %>% as.list()
       )
-    #TODO: train_data, test_data add resid and prediction columns
-  # }
-# }
-    
-#TODO: MAE, MSE on test and train data - scale back
-#TODO: scale and center the response and than compute error
-compute_predictions_residuals(
-  in_dat = test_dat,
-  # in_dat = train_dat,
-  # fit = fit_glm,
-  fit = fit_lme,
-  y_joint = y_joint
-  ) %>% 
-  summarise(
-    wmae = mean(abs(resids)),
-    wmse = mean(resids^2),
-    wrmse = sqrt(wmse)
-    )
+      result_list <- c(result_list,  compute_predictions_residuals(
+        in_dat = test_dat,
+        fit = fit_lme,
+        y_joint = y_joint
+        ) %>% 
+        summarise(
+          wmae_lme_test = sum(abs(resids) * obs_weight) / sum(obs_weight),
+          wwmape_lme_test = sum(abs(resids) * obs_weight) / sum(abs(get(y_joint)) * obs_weight)
+          ) %>% as.list()
+      )
+      # Store results list as tibble row
+      model_results <- full_join(
+        model_results, 
+        result_list %>% as_tibble_row()
+        )
+    }
+  }
+}
 
+model_results %>% View()
+model_results %>% arrange(dependency, restimulus) %>% 
+  select(dependency, restimulus, starts_with('w'), num_coeffs_lme) %>%
+  arrange(restimulus, wwmape_lme_test) %>% View()
+
+write_csv(model_results, file ='model_results_intra_finger_params9.csv')
 # QQ plot of residuals - normal distribution
 compute_predictions_residuals(
   in_dat = test_dat,
@@ -3143,30 +3705,12 @@ compute_predictions_residuals(
 fit_glm$fit %>% plot(se.bands=F)
 # and between weight and height
 fit_glm$fit %>% print()
-fit_glm$fit %>% coef(s = 'lambda.1se', gamma = 'gamma.1se')
-fit_lme$fit %>% summary()
-# fit_lme$fit %>% print()
-# Random effects mean, median and sd of the random effect estimates
-fit_lme$fit %>% merTools::REsim() %>% summarise(
-  mean_mean = mean(mean),
-  mean_sd = IQR(mean), 
-  median_mean = mean(median)
-)
-fit_lme$fit %>% merTools::REsim() %>% merTools::plotREsim()
-# Random effects
-fit_lme$fit %>% coef() %>% .[['subject']] %>% summarise(
-  across(.cols = everything(), list(mean = mean, sd = sd, iqr = IQR))
-)
-# Fixed-effects parameter table with estimates, t and p values
-fit_lme$fit %>% summary() %>% coef() %>% as_tibble(rownames = 'coeffs') %>% 
-  mutate(abs_estimate = abs(Estimate)) %>% filter(abs_estimate > `Std. Error`)
-# Extract Variance and standard deviation to explain
-fit_lme$fit %>% VarCorr() %>% as_tibble() %>% select(-var2) %>% 
-  mutate(
-    var_perc_tot = vcov / sum(vcov),
-    sd_perc_tot = sdcor / sum(sdcor),
-  )
-# T-value - coeff / SE - maybe size of the effect
+fit_glm$fit %>% summary()
+rownames(coeffs)[coeffs[,1]!= 0]
+coeffs[coeffs[,1]!= 0]
+fit_lme$fit %>% summary() %>% coef() %>% as_tibble(rownames = 'coeffs') %>%
+  rename()
+  select(coeffs, Estimate, 't value')
 
 qqnorm(residuals(fit_lme$fit, type = 'response', scaled = F))
 qqline(residuals(fit_lme$fit, type = 'response', scaled = F))
@@ -3174,7 +3718,6 @@ qqnorm(weighted.residuals(fit_lme$fit))
 qqline(weighted.residuals(fit_lme$fit))
 plot((fit_lme$fit), type=c("p","smooth"), col.line=1)
 plot(fit_lme$fit, sqrt(abs(resid(.))) ~ fitted(.), type = c("p", "smooth"))
-# anova(fit_lme$fit)
 with(fit_glm, {
   a <- coef(fit, s = 'lambda.1se', gamma = 'gamma.1se')[, 1]
   # a <- coef(fit, s = 'lambda.min', gamma = 'gamma.min')[, 1]
@@ -3184,18 +3727,44 @@ with(fit_glm, {
 # Takes too long with smooth and qqbands
 resid_panel(fit_lme$fit, smoother = F, qqbands = F)
 
+# Collect both train and test data for MDPI plots
+train_test_subj_rerep_select <- subj_rerep_select$train %>% 
+  full_join(subj_rerep_select$test) %>%
+  # Select subjects MCP3_f-PIP3, restimulus 3
+  # filter(subject %in% c(18, 23, 27, 33, 34, 36))
+  # Select subjects MCP4_f-DIP4, restimulus 12
+  filter(subject %in% c(3, 27, 28, 29, 45, 58))
+train_test_dat <- collect_spark_data(
+  restimulus_select = rest_select,
+  x_joint = x_joint,
+  y_joint = y_joint,
+  subject_rerepetition_select = train_test_subj_rerep_select,
+  spark_tbl_data = dat_flex_anat,
+  keep_intercept = T,
+  info = ''
+    )
+
+train_test_subj_rerep_select %>% View()
+
 panel_plot_fit(
   # fit = fit_glm,
   fit = fit_lme,
-  grid_wrap_facet = facet_wrap,
+  grid_wrap_facet = facet_grid,
   # plot_dat = train_dat,
-  plot_dat = test_dat,
+  # plot_dat = test_dat,
+  plot_dat = train_test_dat,
   x_joint = x_joint,
   y_joint = y_joint,
   lambda = '1se',
   # lambda = 'min',
-  smooth_term_dim = 3
+  # smooth_term_dim = 3
+  smooth_term_dim = NULL
   )
+ggsave(
+  # filename = 'plots/LME_fitted_scatter_MCP3_f-PIP3-MDPI.png',
+  filename = 'plots/LME_fitted_scatter_MCP4_f-DIP4-MDPI.png',
+  width = 9, height = 11, units = 'cm', dpi = 320, pointsize = 12)
+
 residuals_plot_fit_glm(
   fit = fit_glm,
   # plot_dat = train_dat,
@@ -3204,7 +3773,7 @@ residuals_plot_fit_glm(
   y_joint = y_joint,
   lambda = '1se',
   # lambda = 'min',
-  smooth_term_dim = 10
+  smooth_term_dim = 3
   )
 residuals_hist_plot_fit_glm(
   fit = fit_glm,
