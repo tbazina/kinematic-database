@@ -39,7 +39,7 @@ vignettes/*.pdf
 .Renviron
 
 # Vim backup files
-.~
+*~
 
 # Backups, logs, project files
 .gitignore~
